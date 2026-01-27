@@ -1,0 +1,69 @@
+####################################
+# KiCad
+####################################
+
+# Backup files
+*-backups/
+*.bak
+*.bck
+*.tmp
+*.bak
+*.sav
+
+# Autosave files
+_autosave-*
+*.autosave
+
+# Cached / generated files
+*.cache
+fp-info-cache
+*.net
+*.dsn
+*.ses
+*.xml
+
+# Plot and drill temp files
+*.gbr~
+*.drl~
+*.pos~
+
+# Lock files
+*.lck
+
+####################################
+# KiCad 6/7/8 local files
+####################################
+
+# Project local settings (machine-specific)
+*.kicad_prl
+
+# Schematic rescue files (older KiCad)
+*-rescue.kicad_sch
+*-rescue.lib
+
+####################################
+# Fabrication outputs (optional)
+# Uncomment if you regenerate these
+####################################
+
+# gerbers/
+# drill/
+# fabrication/
+
+####################################
+# OS / Editor junk
+####################################
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
