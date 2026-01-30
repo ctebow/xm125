@@ -50,7 +50,7 @@ def get_reading(num_samples, writer, serialCom, trial):
             s_bytes = serialCom.readline()
             decoded_bytes = s_bytes.decode("utf-8").strip('\r\n')
             values = [float(x) for x in decoded_bytes.split()]
-            row = [trial, values[0], values[1], values[2], 100 - 2 * trial]
+            row = [trial, values[0], values[1], values[2], 100 - 4 * trial]
             writer.writerow(row)
             print(values)
         except:
@@ -123,7 +123,7 @@ def main(
         out_stream = open(outfile, "a", encoding="utf-8", newline="") if outfile else sys.stdout
         writer = csv.writer(out_stream, delimiter=",")
         if file_empty:
-            writer.writerow(["trial", "register", "rdistance", "edistance","strength"])
+            writer.writerow(["trial", "register", "rdistance","strength", "edistance"])
         ser = open_serial(baudrate)
         logging.info("Starting read loop")
 
