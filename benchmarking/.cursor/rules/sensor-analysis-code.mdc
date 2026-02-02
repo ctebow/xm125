@@ -1,0 +1,30 @@
+---
+description: Code style for sensor data analysis (Python and notebooks)
+globs: scripts/**/*.py,scripts/**/*.ipynb
+alwaysApply: false
+---
+
+# Sensor Analysis Code Style
+
+## Refactorability
+
+- Prefer **named functions** over long inline blocks. Example: `get_stats(df)`, `remove_outliers_per_trial(df, value_col="rdistance", n_std=1.0)`.
+- Use **parameters** for column names and thresholds (e.g. `x_col`, `y_col`, `n_std`) so the same logic works across datasets.
+- Keep **one clear responsibility** per function: load → clean → aggregate → plot.
+
+## Conciseness
+
+- Use **pandas** idioms: `groupby().agg()`, `reset_index()`, column expressions. Avoid unnecessary loops over rows.
+- Prefer **explicit column lists** in `agg()` (e.g. `median_distance=("rdistance", "median")`) for readability.
+- In notebooks, keep cells focused: one idea or one function call per cell where practical.
+
+## Data Science Practices
+
+- **Error** for this project: `error_mm = rdistance - edistance`; use median/mean error per trial for robustness.
+- **Outliers**: Filter per trial (e.g. by median ± n_std) before regression; document the choice of `n_std`.
+- **Regression**: Use `scipy.stats.linregress` or `seaborn.regplot` for expected vs reported distance; report slope, intercept, and R² when characterizing the sensor.
+- **Plots**: Label axes with quantity and units (e.g. "expected_distance (mm)"); use consistent figsize and style so figures are comparable.
+
+## Libraries
+
+- Use **pandas** for CSVs and grouping; **scipy** for stats; **matplotlib** and **seaborn** for plots. Do not add libraries unrelated to sensor data processing or visualization.

@@ -1,0 +1,38 @@
+---
+description: Project context for ultrasonic distance sensor benchmarking
+alwaysApply: true
+---
+
+# Ultrasonic Distance Sensor Benchmarking
+
+## Project Purpose
+
+This repo benchmarks an ultrasonic distance sensor. Raw data lives in **`data/`** as CSV files. The goal is to **characterize the sensor** by quantifying measurement error and drawing conclusions from the data using **scipy**, **pandas**, and **matplotlib** (and seaborn where useful).
+
+## Data Conventions
+
+- **CSV naming**: `distance_{front|back}_{material}_{start}-{end}-{step}.csv`
+  - Example: `distance_back_pvc_7-10-4.csv` → back sensor, PVC target, start distance 7, end 10, step 4 (units as used in your setup).
+- **Trial structure**: For each trial you take many measurements at one fixed distance, then change the distance and repeat. Each row is one measurement; `trial` groups measurements at the same distance.
+- **Standard columns** (written by `scripts/serial_data_collection.py`):
+  - `trial` – index of the distance step
+  - `register` – sensor register (e.g. 0 vs 1 for different readings)
+  - `rdistance` – reported/raw distance (sensor output)
+  - `strength` – signal strength
+  - `edistance` – expected (true) distance for that trial
+
+Error is computed as `rdistance - edistance` (e.g. in mm). Analysis typically filters to one `register` (e.g. `register == 0`), then aggregates per trial (median/mean/std of `rdistance`, error, strength) for regression or visualization.
+
+## Approach
+
+- Work as a **data scientist**: state hypotheses, check assumptions, use summary stats and plots to support conclusions.
+- Prefer **per-trial aggregation** (median/mean, std, counts) before regression or comparison.
+- Use **scipy** for stats (e.g. `linregress`), **pandas** for loading and grouping, **matplotlib/seaborn** for figures. Keep analysis reproducible and interpretable.
+
+## Code and Layout
+
+- **Refactorable**: Prefer small, focused functions (e.g. `get_stats()`, `remove_outliers_per_trial()`) over long notebooks or scripts.
+- **Concise**: No extra abstractions or dependencies beyond what’s needed for this sensor analysis.
+- **Relevant**: Code should serve sensor characterization and error analysis; avoid generic boilerplate.
+- **Paths**: Prefer paths relative to project root (e.g. `data/...`) or `Path`/`os` from a known root; avoid hardcoded absolute paths in committed code.
+- **Scripts**: New analysis/plotting code belongs in `scripts/`; legacy or one-off scripts can live in `scripts/old/`.
