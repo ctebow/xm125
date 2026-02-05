@@ -26,7 +26,7 @@ DEFAULT_NUM_SAMPLES = 50
 DEFAULT_NUM_TRIALS = 1
 DEFAULT_DELAY = 10
 
-def open_serial(baud_rate: int):
+def open_serial(baud_rate: int, timeout: float = 1.0):
     ports = serial.tools.list_ports.comports()
     if not ports:
         raise IOError("No serial ports found. Make sure your device is connected.")
@@ -36,7 +36,7 @@ def open_serial(baud_rate: int):
     print(f"Connecting to port: {port_name}")
 
     # communicate with serial port connected to teensy
-    serialCom = serial.Serial(port_name, baud_rate)
+    serialCom = serial.Serial(port_name, baud_rate, timeout=timeout)
     serialCom.setDTR(False)
     time.sleep(1)
     serialCom.flushInput()
@@ -44,16 +44,19 @@ def open_serial(baud_rate: int):
     return serialCom
 
 def get_reading(num_samples, writer, serialCom, trial):
+    # Flush any leftover lines from previous trial so first read after START is fresh (fixes stale I2C/buffer)
+    if serialCom.in_waiting > 0:
+        serialCom.reset_input_buffer()
     serialCom.write(b'START\n')
     for k in range(num_samples):
         try:
             s_bytes = serialCom.readline()
             decoded_bytes = s_bytes.decode("utf-8").strip('\r\n')
             values = [float(x) for x in decoded_bytes.split()]
-            row = [trial, values[0], values[1], values[2], 100 - 4 * trial]
+            row = [trial, values[0], values[1], values[2], 200 - 10 * trial]
             writer.writerow(row)
             print(values)
-        except:
+        except Exception:
             print("Line not recorded, failed to get reading")
             return
     serialCom.write(b'STOP\n')
@@ -124,7 +127,7 @@ def main(
         writer = csv.writer(out_stream, delimiter=",")
         if file_empty:
             writer.writerow(["trial", "register", "rdistance","strength", "edistance"])
-        ser = open_serial(baudrate)
+        ser = open_serial(baudrate, timeout=timeout)
         logging.info("Starting read loop")
 
         trial = 0

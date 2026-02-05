@@ -12,7 +12,8 @@
 #define INT_FRONT_PIN 16
 #define INT_BACK_PIN 29
 
-SparkFunXM125Distance radarSensor;
+SparkFunXM125Distance radarSensorBack;
+SparkFunXM125Distance radarSensorFront;
 
 // for python
 bool measuring = false;
@@ -68,40 +69,61 @@ void setup()
     pinMode(ADDRESS_FRONT_PIN, OUTPUT);
     pinMode(ADDRESS_BACK_PIN, OUTPUT);
 
-    //digitalWrite(WAKE_FRONT_PIN, HIGH);
-    digitalWrite(WAKE_BACK_PIN, HIGH);
+    digitalWrite(ADDRESS_FRONT_PIN, HIGH);
 
-    //digitalWrite(ADDRESS_FRONT_PIN, HIGH);
+    digitalWrite(WAKE_BACK_PIN, HIGH);
+    digitalWrite(WAKE_FRONT_PIN, HIGH);
+
 
     Wire.begin();
-    if (radarSensor.begin(i2cAddress, Wire) == 1) {
-        Serial.println("Begin I2C Connection");
+    if (radarSensorBack.begin(BACK_SENSOR_I2C_ADDRESS, Wire) == 1) {
+        Serial.println("Begin I2C Connection to back sensor");
     }
     else {
-        Serial.println("Device could not connect over I2C - Freezing code.");
+        Serial.println("Back sensor could not connect over I2C - Freezing code.");
         while (1)
             ;
     }
     // Apply all configurations
-    configureSensor(radarSensor, errorStatus, startVal, endVal);
+    configureSensor(radarSensorBack, errorStatus, startVal, endVal);
 
-    // get temperature
-    /*if (radarSensor.getTemperature(temperature) != 0) {
-        Serial.print("Temperature reading failed");
-    }
-    Serial.println("Tempurature: ");
-    Serial.print(temperature);
-    */
+
     // Poll detector status until busy bit is cleared
-    if (radarSensor.busyWait() != 0) {
-        Serial.print("Busy wait error");
+    if (radarSensorBack.busyWait() != 0) {
+        Serial.print("Detector Back Busy wait error");
     }
     // Check detector status
-    radarSensor.getDetectorErrorStatus(errorStatus);
+    radarSensorBack.getDetectorErrorStatus(errorStatus);
     if (errorStatus != 0) {
-        Serial.print("Detector status error: ");
+        Serial.print("Detector Back status error: ");
         Serial.println(errorStatus);
     }
+
+    // connect to front sensor
+    if (radarSensorFront.begin(FRONT_SENSOR_I2C_ADDRESS, Wire) == 1) {
+    Serial.println("Begin I2C Connection to front sensor");
+    }
+    else {
+        Serial.println("Front sensor could not connect over I2C - Freezing code.");
+        while (1)
+            ;
+    }
+    // Apply all configurations
+    configureSensor(radarSensorFront, errorStatus, startVal, endVal);
+
+
+    // Poll detector status until busy bit is cleared
+    if (radarSensorFront.busyWait() != 0) {
+        Serial.print("Detector Front Busy wait error");
+    }
+    // Check detector status
+    radarSensorFront.getDetectorErrorStatus(errorStatus);
+    if (errorStatus != 0) {
+        Serial.print("Detector Front status error: ");
+        Serial.println(errorStatus);
+    }
+
+
     Serial.println("Measuring Status: ");
     Serial.print(measuring);
     delay(1000);
@@ -139,14 +161,14 @@ void loop()
     if (measuring) {
 
         // Initialize readings
-        checkErrorsAndStart(radarSensor, errorStatus, measDistErr, calibrateNeeded);
+        checkErrorsAndStart(radarSensorBack, errorStatus, measDistErr, calibrateNeeded);
 
         uint32_t distances[10];
         int32_t strengths[10];
 
         for (int i = 0; i < 10; i++) {
-            (radarSensor.*distanceGetters[i])(distances[i]);
-            (radarSensor.*strengthGetters[i])(strengths[i]);
+            (radarSensorBack.*distanceGetters[i])(distances[i]);
+            (radarSensorBack.*strengthGetters[i])(strengths[i]);
         }
 
         for (int i = 0; i < 10; i++) {
@@ -161,5 +183,5 @@ void loop()
 
     }
     // Half a second delay for easier readings
-    delay(500);
+    delay(250);
 }
