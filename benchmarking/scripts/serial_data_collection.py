@@ -26,6 +26,12 @@ DEFAULT_NUM_SAMPLES = 50
 DEFAULT_NUM_TRIALS = 1
 DEFAULT_DELAY = 10
 
+# Serial format: each line = "register rdistance strength" (space-separated)
+# Single sensor: register 0-9 = peaks 0-9
+# Dual sensor (dual_xm125_sketch): register 0-9 = back peaks, 10-19 = front peaks
+# edistance: expected distance in mm; if None, uses 200 - 10*trial
+
+
 def open_serial(baud_rate: int, timeout: float = 1.0):
     ports = serial.tools.list_ports.comports()
     if not ports:
@@ -43,23 +49,27 @@ def open_serial(baud_rate: int, timeout: float = 1.0):
     serialCom.setDTR(True)
     return serialCom
 
-def get_reading(num_samples, writer, serialCom, trial):
+def get_reading(num_samples, writer, serialCom, trial, edistance=None):
+    """Read num_samples lines from Teensy. Each line: register rdistance strength."""
     # Flush any leftover lines from previous trial so first read after START is fresh (fixes stale I2C/buffer)
     if serialCom.in_waiting > 0:
         serialCom.reset_input_buffer()
-    serialCom.write(b'START\n')
-    for k in range(num_samples):
+    serialCom.write(b"START\n")
+    exp_dist = edistance if edistance is not None else 200 - 10 * trial
+    for _ in range(num_samples):
         try:
             s_bytes = serialCom.readline()
-            decoded_bytes = s_bytes.decode("utf-8").strip('\r\n')
+            decoded_bytes = s_bytes.decode("utf-8").strip("\r\n")
             values = [float(x) for x in decoded_bytes.split()]
-            row = [trial, values[0], values[1], values[2], 200 - 10 * trial]
+            if len(values) < 3:
+                continue
+            row = [trial, values[0], values[1], values[2], exp_dist]
             writer.writerow(row)
             print(values)
         except Exception:
             print("Line not recorded, failed to get reading")
             return
-    serialCom.write(b'STOP\n')
+    serialCom.write(b"STOP\n")
 
 
 @click.command()
@@ -72,7 +82,8 @@ def get_reading(num_samples, writer, serialCom, trial):
 @click.option("--dry-run", is_flag=True, help="Print the resolved options and exit without opening serial port.")
 @click.option("--verbose", "-v", count=True, help="Increase verbosity (use -v, -vv).")
 @click.option("--num_trials", type=int, default=DEFAULT_NUM_TRIALS, help="Number of trials to take, each trial has num_samples samples")
-@click.option("--delay", type=int, default=DEFAULT_DELAY, help="delay inbetween each trial")
+@click.option("--delay", type=int, default=DEFAULT_DELAY, help="Delay in seconds between each trial")
+@click.option("--edistance", "-e", type=str, default=None, help="Expected distance (mm) per trial. Comma-separated for multiple trials (e.g. '200,190,180'). If omitted, uses 200-10*trial")
 def main(
     baudrate: int,
     timeout: float,
@@ -84,6 +95,7 @@ def main(
     verbose: int,
     num_trials: int,
     delay: int,
+    edistance: Optional[str],
 ) -> None:
     """
     Collect serial data and write to OUTFILE or stdout.
@@ -116,9 +128,9 @@ def main(
         click.echo(f"  delimiter={repr(delimiter)}")
         return
     
-    file_empty = False
-    if os.path.getsize(outfile) == 0:
-        file_empty = True
+    file_empty = True
+    if outfile and os.path.exists(outfile) and os.path.getsize(outfile) > 0:
+        file_empty = False
     
     # Open output stream
     out_stream = None
@@ -130,9 +142,15 @@ def main(
         ser = open_serial(baudrate, timeout=timeout)
         logging.info("Starting read loop")
 
+        # Parse edistance: comma-separated list or single value
+        edist_list = None
+        if edistance:
+            edist_list = [float(x.strip()) for x in edistance.split(",")]
+
         trial = 0
         while trial < num_trials:
-            get_reading(num_samples, writer, ser, trial)
+            exp_dist = edist_list[trial] if edist_list and trial < len(edist_list) else None
+            get_reading(num_samples, writer, ser, trial, edistance=exp_dist)
             for n in range(delay, 0, -1):
                     print(f'Measure in {n}')
                     time.sleep(1)

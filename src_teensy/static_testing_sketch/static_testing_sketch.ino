@@ -3,12 +3,10 @@
 #include "DistanceReader.h"
 
 #define BACK_SENSOR_I2C_ADDRESS 0x52
-#define FRONT_SENSOR_I2C_ADDRESS 0x53
+#define FRONT_SENSOR_I2C_ADDRESS 0x51
 
 #define WAKE_FRONT_PIN 20
 #define WAKE_BACK_PIN 15
-#define ADDRESS_FRONT_PIN 17
-#define ADDRESS_BACK_PIN 28
 #define INT_FRONT_PIN 16
 #define INT_BACK_PIN 29
 
@@ -66,11 +64,6 @@ void setup()
     pinMode(WAKE_FRONT_PIN, OUTPUT);
     pinMode(WAKE_BACK_PIN, OUTPUT);
 
-    pinMode(ADDRESS_FRONT_PIN, OUTPUT);
-    pinMode(ADDRESS_BACK_PIN, OUTPUT);
-
-    digitalWrite(ADDRESS_FRONT_PIN, HIGH);
-
     digitalWrite(WAKE_BACK_PIN, HIGH);
     digitalWrite(WAKE_FRONT_PIN, HIGH);
 
@@ -101,7 +94,7 @@ void setup()
 
     // connect to front sensor
     if (radarSensorFront.begin(FRONT_SENSOR_I2C_ADDRESS, Wire) == 1) {
-    Serial.println("Begin I2C Connection to front sensor");
+        Serial.println("Begin I2C Connection to front sensor");
     }
     else {
         Serial.println("Front sensor could not connect over I2C - Freezing code.");
