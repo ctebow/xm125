@@ -4,19 +4,25 @@
  */
 #include "SparkFun_Qwiic_XM125_Arduino_Library.h"
 
+// notes from documentation
+// max step length as low as possible
+// spf set to one for distance measurements
+// low frame rate for power saving
+// 
+
 // --- Configuration constants ---
-const uint32_t START_DIST = 50;       // mm
+const uint32_t START_DIST = 30;       // mm
 const uint32_t END_DIST = 300;        // mm
 const uint32_t MAX_STEP_LENGTH = 2;   // 0 = auto based on profile
 const uint32_t MAX_PROFILE = XM125_DISTANCE_PROFILE3;
 const bool CLOSE_RANGE_LEAKAGE_CANCELLATION = false;
 const uint32_t SIGNAL_QUALITY = 20000;
-const uint32_t THRESHOLD_METHOD = XM125_DISTANCE_CFAR;
+const uint32_t THRESHOLD_METHOD = XM125_DISTANCE_CFAR; // XM125_DISTANCE_CFAR; //XM125_DISTANCE_FIXED_STRENGTH; 
 const uint32_t PEAKSORTING_METHOD = XM125_DISTANCE_STRONGEST;
 const uint32_t REFLECTOR_SHAPE = XM125_DISTANCE_PLANAR;
 const uint32_t NUM_FRAMES_REC_THRESH = 20;
-const uint32_t FIXED_AMP_THRESH_VAL = 50000;
-const uint32_t FIXED_STRENGTH_THRESH_VAL = 0;
+const uint32_t FIXED_AMP_THRESH_VAL = 14000;
+const uint32_t FIXED_STRENGTH_THRESH_VAL = 10000;
 const uint32_t THRESHOLD_SENSITIVITY = 500;
 
 void checkError(const char* name, int err) {

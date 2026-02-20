@@ -30,6 +30,8 @@ SparkFunXM125Distance sensorFront;
 SparkFunXM125Distance sensorBack;
 
 bool measuring = false;
+bool efront = false;
+bool eback = true;
 char cmd_buffer[CMD_BUF_SIZE];
 uint8_t cmd_index = 0;
 
@@ -111,14 +113,17 @@ void setup() {
     digitalWrite(WAKE_BACK_PIN, HIGH);
 
     Wire.begin();
-
-    if (!initSensor(sensorBack, BACK_I2C_ADDR, "Back (0x52)")) {
-        while (1) {}
-    }
-    if (!initSensor(sensorFront, FRONT_I2C_ADDR, "Front (0x51)")) {
-        while (1) {}
+    if (eback) {
+        if (!initSensor(sensorBack, BACK_I2C_ADDR, "Back (0x52)")) {
+            while (1) {}
+        }
     }
 
+    if (efront) {
+        if (!initSensor(sensorFront, FRONT_I2C_ADDR, "Front (0x51)")) {
+            while (1) {}
+        }
+    }
     Serial.println("Ready. Send START to measure.");
     delay(500);
 }
@@ -128,13 +133,16 @@ void loop() {
 
     if (measuring) {
         // Back sensor first (register 0-9)
-        checkErrorsAndStart(sensorBack, errorStatus, measDistErr, calibrateNeeded);
-        outputPeaks(sensorBack, 0);
-
+        if (eback) {
+            checkErrorsAndStart(sensorBack, errorStatus, measDistErr, calibrateNeeded);
+            outputPeaks(sensorBack, 0);
+        }
         // Front sensor (register 10-19)
-        checkErrorsAndStart(sensorFront, errorStatus, measDistErr, calibrateNeeded);
-        outputPeaks(sensorFront, 10);
+        if (efront) {
+            checkErrorsAndStart(sensorFront, errorStatus, measDistErr, calibrateNeeded);
+            outputPeaks(sensorFront, 10);
+        }
     }
 
-    delay(250);
+    delay(200);
 }

@@ -22,7 +22,7 @@ is a lightweight example and can be extended for your device/protocol.
 
 
 DEFAULT_BAUDRATE = 115200
-DEFAULT_NUM_SAMPLES = 50
+DEFAULT_NUM_SAMPLES = 200
 DEFAULT_NUM_TRIALS = 1
 DEFAULT_DELAY = 10
 
@@ -55,7 +55,7 @@ def get_reading(num_samples, writer, serialCom, trial, edistance=None):
     if serialCom.in_waiting > 0:
         serialCom.reset_input_buffer()
     serialCom.write(b"START\n")
-    exp_dist = edistance if edistance is not None else 200 - 10 * trial
+    exp_dist = edistance if edistance is not None else 70 - 2 * trial
     for _ in range(num_samples):
         try:
             s_bytes = serialCom.readline()
@@ -150,7 +150,7 @@ def main(
         trial = 0
         while trial < num_trials:
             exp_dist = edist_list[trial] if edist_list and trial < len(edist_list) else None
-            get_reading(num_samples, writer, ser, trial, edistance=exp_dist)
+            get_reading(num_samples, writer, ser, trial, edistance=80)
             for n in range(delay, 0, -1):
                     print(f'Measure in {n}')
                     time.sleep(1)
