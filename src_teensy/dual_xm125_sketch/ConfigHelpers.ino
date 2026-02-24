@@ -11,16 +11,16 @@
 // 
 
 // --- Configuration constants ---
-const uint32_t START_DIST = 30;       // mm
-const uint32_t END_DIST = 300;        // mm
-const uint32_t MAX_STEP_LENGTH = 2;   // 0 = auto based on profile
+const uint32_t START_DIST = 90;       // mm
+const uint32_t END_DIST = 150;        // mm Lowest possible range, allows for less step lengths
+const uint32_t MAX_STEP_LENGTH = 1;   // 0 = auto based on profile N * 2.5 resolution, so 1 is lowest step length. 
 const uint32_t MAX_PROFILE = XM125_DISTANCE_PROFILE3;
 const bool CLOSE_RANGE_LEAKAGE_CANCELLATION = false;
-const uint32_t SIGNAL_QUALITY = 20000;
+const uint32_t SIGNAL_QUALITY = 35000; // MAX quality --> higher power consumption but better SNR. Translates to 35 db I belive
 const uint32_t THRESHOLD_METHOD = XM125_DISTANCE_CFAR; // XM125_DISTANCE_CFAR; //XM125_DISTANCE_FIXED_STRENGTH; 
 const uint32_t PEAKSORTING_METHOD = XM125_DISTANCE_STRONGEST;
 const uint32_t REFLECTOR_SHAPE = XM125_DISTANCE_PLANAR;
-const uint32_t NUM_FRAMES_REC_THRESH = 20;
+const uint32_t NUM_FRAMES_REC_THRESH = 5;
 const uint32_t FIXED_AMP_THRESH_VAL = 14000;
 const uint32_t FIXED_STRENGTH_THRESH_VAL = 10000;
 const uint32_t THRESHOLD_SENSITIVITY = 500;

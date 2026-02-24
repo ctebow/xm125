@@ -50,6 +50,22 @@ bool initSensor(SparkFunXM125Distance& sensor, uint8_t i2cAddr, const char* name
     Serial.print("Connected: ");
     Serial.println(name);
 
+    // Reset sensor configuration to reapply configuration registers
+    sensor.setCommand(SFE_XM125_DISTANCE_RESET_MODULE);
+    Serial.println("Resetting sensor..");
+
+    sensor.busyWait();
+
+    // Check error and busy bits
+    sensor.getDetectorErrorStatus(errorStatus);
+    if (errorStatus != 0)
+    {
+        Serial.print("Detector status error: ");
+        Serial.println(errorStatus);
+    }
+
+    delay(100);
+
     configureSensor(sensor, errorStatus, startVal, endVal);
 
     if (sensor.busyWait() != 0) {
@@ -144,5 +160,5 @@ void loop() {
         }
     }
 
-    delay(200);
+    delay(500);
 }
