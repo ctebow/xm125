@@ -2,6 +2,9 @@
 #include "SparkFun_Qwiic_XM125_Arduino_Library.h"
 #include "DistanceReader.h"
 
+// Compile-time flag to control whether recalibration is actually applied
+static constexpr bool APPLY_RECALIBRATION = true;
+
 void readAllPeaks(sfDevXM125Distance& sensor, uint32_t distances[], int32_t strengths[]) {
     for (int i = 0; i < NUM_PEAKS; i++) {
         (sensor.*distanceGetters[i])(distances[i]);
@@ -10,7 +13,9 @@ void readAllPeaks(sfDevXM125Distance& sensor, uint32_t distances[], int32_t stre
 }
 
 void checkErrorsAndStart(SparkFunXM125Distance& sensor, uint32_t& errorStatus,
-                         uint32_t& measDistErr, uint32_t& calibrateNeeded) {
+                         uint32_t& measDistErr, uint32_t& calibrateNeeded,
+                         bool& recalibratedThisFrame) {
+    recalibratedThisFrame = false;
     sensor.getDetectorErrorStatus(errorStatus);
     if (errorStatus != 0) {
         Serial.print("Detector status error: ");
@@ -39,11 +44,16 @@ void checkErrorsAndStart(SparkFunXM125Distance& sensor, uint32_t& errorStatus,
     sensor.getCalibrationNeeded(calibrateNeeded);
     if (calibrateNeeded == 1) {
         Serial.println("Calibration Needed - Recalibrating..");
-        sensor.setCommand(SFE_XM125_DISTANCE_RECALIBRATE);
-        if (sensor.busyWait() != 0) {
-            Serial.println("Busy wait error during calibration");
+        if (APPLY_RECALIBRATION) {
+            sensor.setCommand(SFE_XM125_DISTANCE_RECALIBRATE);
+            if (sensor.busyWait() != 0) {
+                Serial.println("Busy wait error during calibration");
+            }
+            recalibratedThisFrame = true;
+            Serial.println("Recalibration complete.");
+        } else {
+            Serial.println("APPLY_RECALIBRATION is false; skipping recalibration command.");
         }
-        Serial.println("Recalibration complete.");
     }
 }
 

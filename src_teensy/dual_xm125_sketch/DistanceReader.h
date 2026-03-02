@@ -14,6 +14,8 @@ extern StrengthGetter strengthGetters[NUM_PEAKS];
 // Read all peaks from sensor into pre-allocated arrays
 void readAllPeaks(sfDevXM125Distance& sensor, uint32_t distances[], int32_t strengths[]);
 
-// Check errors, start detector, handle calibration if needed
+// Check errors, start detector, handle calibration if needed.
+// recalibratedThisFrame is set true iff a recalibration command was applied.
 void checkErrorsAndStart(SparkFunXM125Distance& sensor, uint32_t& errorStatus,
-                         uint32_t& measDistErr, uint32_t& calibrateNeeded);
+                         uint32_t& measDistErr, uint32_t& calibrateNeeded,
+                         bool& recalibratedThisFrame);

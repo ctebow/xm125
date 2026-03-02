@@ -8,9 +8,10 @@
  * Serial protocol (for serial_data_collection.py):
  *   - Send "START\n" to begin measurement loop
  *   - Send "STOP\n" to end
- *   - Each line: "register rdistance strength" (space-separated)
+ *   - Each line: "register rdistance strength recalibrated" (space-separated)
+ *       * recalibrated: 1 if a recalibration command was applied for that frame, else 0
  *   - Register encoding: 0-9 = back peaks 0-9, 10-19 = front peaks 0-9
- *   - Python maps to CSV: trial, register, rdistance, strength, edistance
+ *   - Python maps to CSV: trial, register, rdistance, strength, recalibrated, edistance
  */
 #include "SparkFun_Qwiic_XM125_Arduino_Library.h"
 #include <Arduino.h>
@@ -101,7 +102,7 @@ void processSerialCommands() {
 
 // Output peaks to Serial in standardized format: "register rdistance strength"
 // baseRegister: 0 for back, 10 for front (so register 0-9 = back, 10-19 = front)
-void outputPeaks(SparkFunXM125Distance& sensor, uint8_t baseRegister) {
+void outputPeaks(SparkFunXM125Distance& sensor, uint8_t baseRegister, bool recalibrated) {
     uint32_t distances[NUM_PEAKS];
     int32_t strengths[NUM_PEAKS];
     readAllPeaks(sensor, distances, strengths);
@@ -112,7 +113,9 @@ void outputPeaks(SparkFunXM125Distance& sensor, uint8_t baseRegister) {
             Serial.print(' ');
             Serial.print(distances[i]);
             Serial.print(' ');
-            Serial.println(strengths[i]);
+            Serial.print(strengths[i]);
+            Serial.print(' ');
+            Serial.println(recalibrated ? 1 : 0);
         }
     }
 }
@@ -150,15 +153,17 @@ void loop() {
     if (measuring) {
         // Back sensor first (register 0-9)
         if (eback) {
-            checkErrorsAndStart(sensorBack, errorStatus, measDistErr, calibrateNeeded);
-            outputPeaks(sensorBack, 0);
+            bool backRecalibrated = false;
+            checkErrorsAndStart(sensorBack, errorStatus, measDistErr, calibrateNeeded, backRecalibrated);
+            outputPeaks(sensorBack, 0, backRecalibrated);
         }
         // Front sensor (register 10-19)
         if (efront) {
-            checkErrorsAndStart(sensorFront, errorStatus, measDistErr, calibrateNeeded);
-            outputPeaks(sensorFront, 10);
+            bool frontRecalibrated = false;
+            checkErrorsAndStart(sensorFront, errorStatus, measDistErr, calibrateNeeded, frontRecalibrated);
+            outputPeaks(sensorFront, 10, frontRecalibrated);
         }
     }
 
-    delay(500);
+    delay(400);
 }

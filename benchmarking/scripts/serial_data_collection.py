@@ -26,7 +26,9 @@ DEFAULT_NUM_SAMPLES = 200
 DEFAULT_NUM_TRIALS = 1
 DEFAULT_DELAY = 10
 
-# Serial format: each line = "register rdistance strength" (space-separated)
+# Serial format: each line = \"register rdistance strength [recalibrated]\" (space-separated)
+# - recalibrated is optional; when present it is 0/1 indicating whether a recalibration
+#   command was applied for that measurement frame.
 # Single sensor: register 0-9 = peaks 0-9
 # Dual sensor (dual_xm125_sketch): register 0-9 = back peaks, 10-19 = front peaks
 # edistance: expected distance in mm; if None, uses 200 - 10*trial
@@ -50,7 +52,10 @@ def open_serial(baud_rate: int, timeout: float = 1.0):
     return serialCom
 
 def get_reading(num_samples, writer, serialCom, trial, edistance=None):
-    """Read num_samples lines from Teensy. Each line: register rdistance strength."""
+    """Read num_samples lines from Teensy.
+
+    Each line: \"register rdistance strength [recalibrated]\".
+    """
     # Flush any leftover lines from previous trial so first read after START is fresh (fixes stale I2C/buffer)
     if serialCom.in_waiting > 0:
         serialCom.reset_input_buffer()
@@ -60,12 +65,31 @@ def get_reading(num_samples, writer, serialCom, trial, edistance=None):
         try:
             s_bytes = serialCom.readline()
             decoded_bytes = s_bytes.decode("utf-8").strip("\r\n")
-            values = [float(x) for x in decoded_bytes.split()]
-            if len(values) < 3:
+            if not decoded_bytes:
                 continue
-            row = [trial, values[0], values[1], values[2], exp_dist]
+            parts = decoded_bytes.split()
+            # Expect at least register, rdistance, strength
+            if len(parts) < 3:
+                continue
+            try:
+                reg = float(parts[0])
+                rdist = float(parts[1])
+                strength = float(parts[2])
+                # Optional recalibrated flag (0/1). Default to 0 if missing.
+                if len(parts) >= 4:
+                    try:
+                        recalibrated = int(parts[3])
+                    except ValueError:
+                        recalibrated = 0
+                else:
+                    recalibrated = 0
+            except ValueError:
+                # Skip malformed numeric lines
+                continue
+
+            row = [trial, reg, rdist, strength, recalibrated, exp_dist]
             writer.writerow(row)
-            print(values)
+            print(parts)
         except Exception:
             print("Line not recorded, failed to get reading")
             return
@@ -138,7 +162,7 @@ def main(
         out_stream = open(outfile, "a", encoding="utf-8", newline="") if outfile else sys.stdout
         writer = csv.writer(out_stream, delimiter=",")
         if file_empty:
-            writer.writerow(["trial", "register", "rdistance","strength", "edistance"])
+            writer.writerow(["trial", "register", "rdistance", "strength", "recalibrated", "edistance"])
         ser = open_serial(baudrate, timeout=timeout)
         logging.info("Starting read loop")
 
@@ -150,7 +174,7 @@ def main(
         trial = 0
         while trial < num_trials:
             exp_dist = edist_list[trial] if edist_list and trial < len(edist_list) else None
-            get_reading(num_samples, writer, ser, trial, edistance=145 - 5*trial)
+            get_reading(num_samples, writer, ser, trial, edistance=95 - 2*trial)
             for n in range(delay, 0, -1):
                     print(f'Measure in {n}')
                     time.sleep(1)
