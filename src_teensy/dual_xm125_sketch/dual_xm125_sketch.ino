@@ -31,7 +31,7 @@ SparkFunXM125Distance sensorFront;
 SparkFunXM125Distance sensorBack;
 
 bool measuring = false;
-bool efront = false;
+bool efront = true;
 bool eback = true;
 char cmd_buffer[CMD_BUF_SIZE];
 uint8_t cmd_index = 0;

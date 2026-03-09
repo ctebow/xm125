@@ -11,8 +11,8 @@
 // 
 
 // --- Configuration constants ---
-const uint32_t START_DIST = 90;       // mm
-const uint32_t END_DIST = 150;        // mm Lowest possible range, allows for less step lengths
+const uint32_t START_DIST = 30;       // mm
+const uint32_t END_DIST = 110;        // mm Lowest possible range, allows for less step lengths
 const uint32_t MAX_STEP_LENGTH = 1;   // 0 = auto based on profile N * 2.5 resolution, so 1 is lowest step length. 
 const uint32_t MAX_PROFILE = XM125_DISTANCE_PROFILE2;
 const bool CLOSE_RANGE_LEAKAGE_CANCELLATION = false;
