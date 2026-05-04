@@ -210,7 +210,7 @@ def get_reading_raw_iq(
 @click.option("--delimiter", "-D", default="\\n", show_default=True, help="Line delimiter/terminator used by device.")
 @click.option("--dry-run", is_flag=True, help="Print the resolved options and exit without opening serial port.")
 @click.option("--verbose", "-v", count=True, help="Increase verbosity (use -v, -vv).")
-@click.option("--num_trials", type=int, default=DEFAULT_NUM_TRIALS, help="Number of trials to take, each with num_samples IQ rows.")
+@click.option("--num-trials", type=int, default=DEFAULT_NUM_TRIALS, help="Number of trials to take, each with num_samples IQ rows.")
 @click.option("--delay", type=int, default=DEFAULT_DELAY, help="Delay in seconds between each trial.")
 @click.option("--edistance", "-e", type=str, default=None, help="Reserved for compatibility with serial_data_collection.py.")
 def main(

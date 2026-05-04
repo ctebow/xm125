@@ -12,14 +12,27 @@ static constexpr uint16_t DISTANCE_REG_COMMAND_ADDRESS = 256;      // 0x0100
 static constexpr uint16_t DISTANCE_REG_DETECTOR_STATUS_ADDRESS = 3; // 0x0003
 static constexpr uint16_t DISTANCE_REG_MEASURE_COUNTER_ADDRESS = 2; // 0x0002
 static constexpr uint16_t DISTANCE_REG_PEAK0_DISTANCE_ADDRESS = 17;  // 0x0011
+static constexpr uint16_t DISTANCE_REG_PEAK0_STRENGTH_ADDRESS = 27;  // 0x001B
 
-static constexpr uint32_t IQ_CMD_BASE = 6;   // style-A uses (6<<16)|index
-static constexpr uint32_t CAPTURE_IQ = 6;     // style-B uses command=6
+static constexpr uint32_t IQ_OP = 6U;
+static constexpr uint16_t IQ_INVALIDATE_INDEX = 0xFFFFU;
+static constexpr uint32_t IQ_READY_MASK = (1UL << 30);
+static constexpr uint32_t IQ_CAPTURE_ERROR_MASK = (1UL << 29);
 
-// IQ-ready bit in the detector status register.
-static constexpr uint32_t IQ_READY_BIT = (1UL << 16);
-// BUSY bit in the detector status register (matches SparkFun's distance core).
-static constexpr uint32_t BUSY_BIT = (1UL << 31);
+enum class IqWaitResult : uint8_t {
+    Ready = 0,
+    CaptureError = 1,
+    Timeout = 2,
+    ReadError = 3,
+};
+
+static inline uint32_t makeIqCommand(uint16_t index) {
+    return (IQ_OP << 16) | static_cast<uint32_t>(index);
+}
+
+static inline uint32_t makeIqInvalidateCommand() {
+    return makeIqCommand(IQ_INVALIDATE_INDEX);
+}
 
 struct IqStreamMeta {
     bool valid = false;
@@ -73,24 +86,42 @@ static inline bool rawReadReg32(uint8_t devI2cAddr, uint16_t regAddr, uint32_t& 
     return true;
 }
 
-static inline bool waitForIqReadyAndNotBusy(uint8_t devI2cAddr, uint32_t timeoutMs) {
+static inline IqWaitResult waitForIqReadyNoCaptureError(uint8_t devI2cAddr, uint32_t timeoutMs) {
     const uint32_t startMs = millis();
+    bool sawReadSuccess = false;
     while (millis() - startMs < timeoutMs) {
         uint32_t status = 0;
         if (rawReadReg32(devI2cAddr, DISTANCE_REG_DETECTOR_STATUS_ADDRESS, status)) {
-            bool busy = (status & BUSY_BIT) != 0;
-            bool iqReady = (status & IQ_READY_BIT) != 0;
-            if (!busy && iqReady) return true;
+            sawReadSuccess = true;
+            const bool captureError = (status & IQ_CAPTURE_ERROR_MASK) != 0;
+            const bool iqReady = (status & IQ_READY_MASK) != 0;
+            if (captureError) return IqWaitResult::CaptureError;
+            if (iqReady) return IqWaitResult::Ready;
         }
         delay(2); // small pacing to avoid hammering the bus
     }
-    return false;
+    return sawReadSuccess ? IqWaitResult::Timeout : IqWaitResult::ReadError;
+}
+
+static inline bool readIqCounterFields(uint8_t devI2cAddr, uint16_t& frameIdOut, uint16_t& numBinsOut) {
+    uint32_t counterRaw = 0;
+    if (!rawReadReg32(devI2cAddr, DISTANCE_REG_MEASURE_COUNTER_ADDRESS, counterRaw)) {
+        return false;
+    }
+    numBinsOut = static_cast<uint16_t>(counterRaw & 0xFFFFU);
+    frameIdOut = static_cast<uint16_t>((counterRaw >> 16) & 0xFFFFU);
+    return true;
+}
+
+static inline void sendIqInvalidateBestEffort(uint8_t devI2cAddr) {
+    (void)rawWriteReg32(devI2cAddr, DISTANCE_REG_COMMAND_ADDRESS, makeIqInvalidateCommand());
 }
 
 // IQ style-A capture for `i2c_iq_custom.c`:
-// 1) Write command = (IQ_CMD_BASE<<16) | index to DISTANCE_REG_COMMAND_ADDRESS
-// 2) Wait until detector BUSY clears and IQ-ready bit is set
-// 3) Read DISTANCE_REG_MEASURE_COUNTER_ADDRESS once: returns iq_num_points when IQ is valid
+// 1) Write command = (IQ_OP<<16) | index to DISTANCE_REG_COMMAND_ADDRESS
+// 2) Wait until IQ-ready is set and capture-error is clear
+// 3) Read DISTANCE_REG_MEASURE_COUNTER_ADDRESS:
+//    low16=iq_num_points, high16=iq_frame_id
 // 4) For each index, read PEAK0_DISTANCE (real) and PEAK0_STRENGTH (imag), both scaled by 1000
 //
 // On success, prints lines: `registerIndex I Q` for each IQ sample, where I and Q are the
@@ -103,80 +134,112 @@ static inline bool captureIqStyleAAndPrint(uint8_t devI2cAddr,
                                            uint32_t timeoutMs = 5000,
                                            uint32_t hardLimitSamples = 4096) {
     sampleCountOut = 0;
+    static constexpr uint32_t kMaxAttempts = 3;
+    static constexpr uint32_t kRetryDelayMs = 5;
 
-    // First, trigger IQ capture for index 0 to let firmware fill buffers and report iq_num_points.
-    uint32_t command0 = (IQ_CMD_BASE << 16) | 0U;
-    if (!rawWriteReg32(devI2cAddr, DISTANCE_REG_COMMAND_ADDRESS, command0)) {
-        return false;
-    }
-
-    if (!waitForIqReadyAndNotBusy(devI2cAddr, timeoutMs)) {
-        return false;
-    }
-
-    // In style-A, MEASURE_COUNTER returns iq_num_points when IQ is valid.
-    uint32_t iqPointsRaw = 0;
-    if (!rawReadReg32(devI2cAddr, DISTANCE_REG_MEASURE_COUNTER_ADDRESS, iqPointsRaw)) {
-        return false;
-    }
-    uint32_t iqPoints = iqPointsRaw & 0xFFFFU;
-    if (iqPoints == 0 || iqPoints > hardLimitSamples) {
-        return false;
-    }
-
-    // Frame header (host-side framing).
-    Serial.print("FRAME ");
-    Serial.print(frameId);
-    Serial.print(' ');
-    Serial.print(sensorLabel != nullptr ? sensorLabel : "?");
-    Serial.print(" addr=0x");
-    Serial.print(devI2cAddr, HEX);
-    Serial.print(" bins=");
-    Serial.print(iqPoints);
-    Serial.print(" t_ms=");
-    Serial.println(millis());
-
-    // Loop over all indices and read real/imag from PEAK0_DISTANCE / PEAK0_STRENGTH.
-    for (uint32_t idx = 0; idx < iqPoints; idx++) {
-        uint32_t command = (IQ_CMD_BASE << 16) | static_cast<uint32_t>(idx);
-        if (!rawWriteReg32(devI2cAddr, DISTANCE_REG_COMMAND_ADDRESS, command)) {
-            return false;
+    for (uint32_t attempt = 1; attempt <= kMaxAttempts; ++attempt) {
+        // Step A: trigger IQ capture/select for start index 0.
+        if (!rawWriteReg32(devI2cAddr, DISTANCE_REG_COMMAND_ADDRESS, makeIqCommand(0U))) {
+            delay(kRetryDelayMs);
+            continue;
         }
 
-        if (!waitForIqReadyAndNotBusy(devI2cAddr, timeoutMs)) {
-            return false;
+        // Step B: poll status until ready and capture-error clear.
+        const IqWaitResult waitResult = waitForIqReadyNoCaptureError(devI2cAddr, timeoutMs);
+        if (waitResult != IqWaitResult::Ready) {
+            sendIqInvalidateBestEffort(devI2cAddr);
+            delay(kRetryDelayMs);
+            continue;
         }
 
-        uint32_t realRaw = 0;
-        uint32_t imagRaw = 0;
-        if (!rawReadReg32(devI2cAddr, DISTANCE_REG_PEAK0_DISTANCE_ADDRESS, realRaw)) {
-            return false;
+        // Step C: read counter and split into frame_id_start + num_bins.
+        uint16_t frameIdStart = 0;
+        uint16_t numBinsRaw = 0;
+        if (!readIqCounterFields(devI2cAddr, frameIdStart, numBinsRaw)) {
+            delay(kRetryDelayMs);
+            continue;
+        }
+        const uint32_t iqPoints = static_cast<uint32_t>(numBinsRaw);
+
+        // Step D: validate num_bins range.
+        if (iqPoints == 0U || iqPoints > hardLimitSamples) {
+            sendIqInvalidateBestEffort(devI2cAddr);
+            delay(kRetryDelayMs);
+            continue;
         }
 
-        // PEAK0_STRENGTH address is defined in the firmware header; we mirror its constant here.
-        static constexpr uint16_t DISTANCE_REG_PEAK0_STRENGTH_ADDRESS = 27; // 0x001B
-        if (!rawReadReg32(devI2cAddr, DISTANCE_REG_PEAK0_STRENGTH_ADDRESS, imagRaw)) {
-            return false;
-        }
-
-        // The protocol packs floats as milli-units; keep them as int32_t so the host can scale.
-        int32_t I = static_cast<int32_t>(realRaw);
-        int32_t Q = static_cast<int32_t>(imagRaw);
-
-        Serial.print(registerBase + idx);
+        // Frame header (host-side framing).
+        Serial.print("FRAME ");
+        Serial.print(frameId);
         Serial.print(' ');
-        Serial.print(I);
+        Serial.print(sensorLabel != nullptr ? sensorLabel : "?");
+        Serial.print(" addr=0x");
+        Serial.print(devI2cAddr, HEX);
+        Serial.print(" bins=");
+        Serial.print(iqPoints);
+        Serial.print(" fid=");
+        Serial.print(frameIdStart);
+        Serial.print(" t_ms=");
+        Serial.println(millis());
+
+        bool readFailed = false;
+        // Step E: read all cached bins from same frame.
+        for (uint32_t idx = 0; idx < iqPoints; ++idx) {
+            if (!rawWriteReg32(devI2cAddr, DISTANCE_REG_COMMAND_ADDRESS, makeIqCommand(static_cast<uint16_t>(idx)))) {
+                readFailed = true;
+                break;
+            }
+
+            uint32_t realRaw = 0;
+            uint32_t imagRaw = 0;
+            if (!rawReadReg32(devI2cAddr, DISTANCE_REG_PEAK0_DISTANCE_ADDRESS, realRaw) ||
+                !rawReadReg32(devI2cAddr, DISTANCE_REG_PEAK0_STRENGTH_ADDRESS, imagRaw)) {
+                readFailed = true;
+                break;
+            }
+
+            // Transport scale is milli-units.
+            const float I = static_cast<float>(static_cast<int32_t>(realRaw)) / 1000.0f;
+            const float Q = static_cast<float>(static_cast<int32_t>(imagRaw)) / 1000.0f;
+
+            Serial.print(registerBase + idx);
+            Serial.print(' ');
+            Serial.print(I, 6);
+            Serial.print(' ');
+            Serial.println(Q, 6);
+        }
+
+        if (readFailed) {
+            sendIqInvalidateBestEffort(devI2cAddr);
+            delay(kRetryDelayMs);
+            continue;
+        }
+
+        // Step F/G: re-read frame id and verify coherence.
+        uint16_t frameIdEnd = 0;
+        uint16_t numBinsEnd = 0;
+        if (!readIqCounterFields(devI2cAddr, frameIdEnd, numBinsEnd)) {
+            sendIqInvalidateBestEffort(devI2cAddr);
+            delay(kRetryDelayMs);
+            continue;
+        }
+        if (frameIdEnd != frameIdStart) {
+            sendIqInvalidateBestEffort(devI2cAddr);
+            delay(kRetryDelayMs);
+            continue;
+        }
+
+        // Frame footer.
+        Serial.print("ENDFRAME ");
+        Serial.print(frameId);
         Serial.print(' ');
-        Serial.println(Q);
+        Serial.println(sensorLabel != nullptr ? sensorLabel : "?");
+
+        sampleCountOut = iqPoints;
+        return true;
     }
 
-    // Frame footer.
-    Serial.print("ENDFRAME ");
-    Serial.print(frameId);
-    Serial.print(' ');
-    Serial.println(sensorLabel != nullptr ? sensorLabel : "?");
-
-    sampleCountOut = iqPoints;
-    return true;
+    Serial.println("ERROR IQ_FETCH_RETRIES_EXHAUSTED");
+    return false;
 }
 

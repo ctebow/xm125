@@ -7,8 +7,8 @@
 #include "SparkFun_Qwiic_XM125_Arduino_Library.h"
 
 // --- Configuration constants ---
-const uint32_t START_DIST = 30;       // mm
-const uint32_t END_DIST = 110;        // mm
+const uint32_t START_DIST = 100;       // mm
+const uint32_t END_DIST = 150;        // mm
 const uint32_t MAX_STEP_LENGTH = 1;   // 0 = auto based on profile
 const uint32_t MAX_PROFILE = XM125_DISTANCE_PROFILE2;
 const bool CLOSE_RANGE_LEAKAGE_CANCELLATION = false;
